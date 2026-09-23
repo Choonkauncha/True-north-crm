@@ -8,6 +8,9 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Migrations need a direct (non-pooled) connection: Neon's PgBouncer pooler can't hold
+  // the session advisory lock `prisma migrate deploy` acquires, which caused P1002 timeouts.
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 model Employee {
