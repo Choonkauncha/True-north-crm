@@ -170,10 +170,12 @@ export async function authenticate(role: UserRole, password: string, employeeId?
 }
 
 export function sessionCookieOptions() {
+  const isProduction = process.env.NODE_ENV === 'production'
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
+    // The v0 preview runs inside a cross-site iframe, which only accepts SameSite=None; Secure cookies.
+    secure: true,
+    sameSite: isProduction ? ('lax' as const) : ('none' as const),
     path: '/',
     maxAge: SESSION_DAYS * 24 * 60 * 60,
   }
