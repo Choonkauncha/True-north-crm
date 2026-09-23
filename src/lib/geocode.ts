@@ -25,6 +25,9 @@ function providerError(status: number, body: unknown) {
   if (status === 401) return new Error('Geocodio rejected the API key. Check GEOCODIO_API_KEY in Vercel.')
   if (status === 403) {
     const detail = typeof body === 'object' && body && 'error' in body ? String((body as { error?: unknown }).error ?? '') : ''
+    if (/invalid api key/i.test(detail)) {
+      return new Error('Geocodio says the API key is invalid. Copy the key from dash.geocod.io > API Keys into GEOCODIO_API_KEY (no quotes or spaces), then redeploy.')
+    }
     return new Error(detail || 'Geocodio denied the request. Check the API key permissions or account usage limit.')
   }
   if (status === 429) return new Error('Geocodio free daily lookup limit has been reached. Try again later.')
@@ -34,11 +37,14 @@ function providerError(status: number, body: unknown) {
 }
 
 export async function verifyAddress(address: string): Promise<VerifiedGeocode> {
-  const key = process.env.GEOCODIO_API_KEY
+  // Values pasted into env settings often carry whitespace or wrapping quotes, which Geocodio rejects as invalid.
+  const key = (process.env.GEOCODIO_API_KEY || '').trim().replace(/^["']|["']$/g, '').trim()
   if (!key) throw new Error('Address verification is not configured. Add GEOCODIO_API_KEY in Vercel.')
 
+  // Standard accounts must use api.geocod.io; the enterprise host rejects their keys as "Invalid API key".
+  const baseUrl = (process.env.GEOCODIO_API_URL || 'https://api.geocod.io/v1.9').replace(/\/+$/, '')
   const params = new URLSearchParams({ q: address.trim(), country: 'USA', api_key: key, limit: '5' })
-  const response = await fetch(`https://api.enterprise.geocod.io/v2/geocode?${params.toString()}`, {
+  const response = await fetch(`${baseUrl}/geocode?${params.toString()}`, {
     cache: 'no-store',
     headers: { Accept: 'application/json' },
   })
