@@ -1,0 +1,309 @@
+// True North Field OS — Prisma schema
+// Production Vercel deployment uses managed PostgreSQL (Prisma Postgres, Neon, etc.).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id             String        @id @default(cuid())
+  name           String
+  role           String
+  email          String        @default("")
+  phone          String        @default("")
+  notes          String        @default("")
+  active         Boolean       @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  createdLeads   Lead[]        @relation("EmployeeCreatedLeads")
+  estimates      Estimate[]    @relation("EmployeeCreatedEstimates")
+  jobs           Job[]         @relation("EmployeeCreatedJobs")
+  appointments   Appointment[] @relation("EmployeeCreatedAppointments")
+  photos         PhotoAsset[]  @relation("EmployeeCreatedPhotos")
+  activities     ActivityLog[]
+
+  @@index([role])
+  @@index([active])
+  @@map("employees")
+}
+
+model AccessCredential {
+  id           String   @id @default(cuid())
+  role         String   @unique
+  passwordHash String
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  @@map("access_credentials")
+}
+
+model ActivityLog {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  action     String
+  entityType String
+  entityId   String?
+  summary    String
+  createdAt  DateTime  @default(now())
+
+  @@index([employeeId, createdAt])
+  @@index([entityType, entityId])
+  @@map("activity_logs")
+}
+
+model Lead {
+  id               String   @id @default(cuid())
+  name             String   @default("")
+  phone            String   @default("")
+  email            String   @default("")
+  street           String
+  city             String   @default("Mount Vernon")
+  state            String   @default("OH")
+  zip              String   @default("")
+  latitude         Float?
+  longitude        Float?
+  formattedAddress String?
+  geocodeStatus    String   @default("unverified") // unverified|verified|needs_review
+  geocodeProvider  String?
+  geocodeAccuracy   Float?
+  geocodeAccuracyType String?
+  stableAddressKey  String?
+  geocodedAt       DateTime?
+  source           String   @default("door_knock")
+  territory        String   @default("Knox County")
+  notes            String   @default("")
+  stage            String   @default("new")
+  nextAction       String   @default("Initial contact and inspection scheduling")
+  verifiedArea     Float?
+  pitch            Float?
+  contractFile     String?
+  createdById      String?
+  createdBy        Employee? @relation("EmployeeCreatedLeads", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  estimates        Estimate[]
+  inspections      InspectionReport[]
+  jobs             Job[]
+  appointments     Appointment[]
+  photos           PhotoAsset[]
+  aerialScans      AerialScan[]
+
+  @@index([street])
+  @@index([stage])
+  @@index([createdById])
+  @@map("leads")
+}
+
+model Appointment {
+  id             String    @id @default(cuid())
+  leadId         String
+  lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  address        String
+  status         String    @default("no") // yes|no|completed|cancelled
+  appointmentDate DateTime?
+  notes          String    @default("")
+  createdById    String?
+  createdBy      Employee? @relation("EmployeeCreatedAppointments", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([leadId, createdAt])
+  @@index([status])
+  @@map("appointments")
+}
+
+model PhotoAsset {
+  id          String    @id @default(cuid())
+  leadId      String?
+  lead        Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  address     String
+  title       String    @default("")
+  category    String    @default("roof")
+  dataUrl     String
+  createdById String?
+  createdBy   Employee? @relation("EmployeeCreatedPhotos", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([leadId, createdAt])
+  @@index([address])
+  @@map("photo_assets")
+}
+
+model Estimate {
+  id             String   @id @default(cuid())
+  leadId         String?
+  lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  property       String
+  product        String
+  productId      String
+  color          String   @default("")
+  area           Float
+  squares        Float
+  wastePct       Float    @default(12)
+  discount       Float    @default(0)
+  shinglePerSq   Float
+  profileName    String
+  price          Float
+  directCost     Float
+  grossProfit    Float
+  grossMarginPct Float
+  status         String   @default("sent")
+  createdById    String?
+  createdBy      Employee? @relation("EmployeeCreatedEstimates", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  jobs           Job[]
+
+  @@index([leadId])
+  @@index([createdById])
+  @@map("estimates")
+}
+
+model Job {
+  id               String   @id @default(cuid())
+  estimateId       String?
+  estimate         Estimate? @relation(fields: [estimateId], references: [id], onDelete: SetNull)
+  leadId           String?
+  lead             Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  property         String
+  contractValue    Float
+  actualCost       Float    @default(0)
+  cashCollected    Float    @default(0)
+  balance          Float    @default(0)
+  contractFilename String?
+  status           String   @default("scheduled")
+  startDate        DateTime?
+  completedAt      DateTime?
+  createdById      String?
+  createdBy        Employee? @relation("EmployeeCreatedJobs", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([createdById])
+  @@map("jobs")
+}
+
+model PricingProfile {
+  id                    String   @id @default(cuid())
+  name                  String
+  materialPerSq         Float
+  laborPerSq            Float
+  tearOffPerSq          Float
+  underlaymentPerSq     Float
+  accessoriesPerSq      Float
+  disposalPerJob        Float    @default(0)
+  permitPerJob          Float    @default(0)
+  salesCommissionPct    Float    @default(10)
+  targetGrossMarginPct  Float    @default(35)
+  isDefault             Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("pricing_profiles")
+}
+
+model SupplierPrice {
+  id        String   @id @default(cuid())
+  product   String
+  color     String   @default("")
+  price     Float
+  supplier  String
+  item      String   @default("")
+  savedAt   DateTime @default(now())
+
+  @@index([product, color, savedAt])
+  @@map("supplier_prices")
+}
+
+model InspectionReport {
+  id           String   @id @default(cuid())
+  leadId       String?
+  lead         Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  photoDataUrl String
+  windCount    Int      @default(0)
+  hailCount    Int      @default(0)
+  missingCount Int      @default(0)
+  totalCount   Int      @default(0)
+  recommendedIko String  @default("")
+  summary      String   @default("")
+  source       String   @default("AI Vision (VLM)")
+  createdAt    DateTime @default(now())
+
+  @@index([leadId, createdAt])
+  @@map("inspection_reports")
+}
+
+model CopilotMessage {
+  id        String   @id @default(cuid())
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("copilot_messages")
+}
+
+model CanvassRoute {
+  id          String   @id @default(cuid())
+  name        String
+  town        String   @default("")
+  status      String   @default("draft")
+  notes       String   @default("")
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stops       CanvassStop[]
+
+  @@index([status, createdAt])
+  @@map("canvass_routes")
+}
+
+model CanvassStop {
+  id        String   @id @default(cuid())
+  routeId   String
+  route     CanvassRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  leadId    String?
+  street    String
+  name      String
+  lat       Float
+  lng       Float
+  order     Int
+  status    String   @default("pending")
+  notes     String   @default("")
+  visitedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([routeId, order])
+  @@index([leadId])
+  @@map("canvass_stops")
+}
+
+model AerialScan {
+  id             String   @id @default(cuid())
+  leadId         String?
+  lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  lat            Float
+  lng            Float
+  address        String
+  conditionScore Int      @default(0)
+  condition      String   @default("unknown")
+  findings       String   @default("")
+  indicators     String   @default("[]")
+  imageDataUrl   String   @default("")
+  scannedAt      DateTime @default(now())
+
+  @@index([leadId, scannedAt])
+  @@map("aerial_scans")
+}
